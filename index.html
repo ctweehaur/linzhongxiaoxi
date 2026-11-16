@@ -951,8 +951,9 @@
         let userSelectedAnswers = {};
         let currentFontSize = parseFloat(localStorage.getItem('reader_pref_font_size')) || 19.5;
 
-        /* 🏷️ 智能文体单位识别器：自动适配“第X段”、“第X句”、“第X节”、“第X层”、“上阕/下阕” */
+        /* 🏷️ 智能文体单位识别器：仅检测【标题】内的单位，绝不误判散文内文中的“首句/末句” */
         function getSectionLabel(index) {
+            // 1. 优先读取显式声明的单位变量（如 const sectionUnit = "句"; 或 "节"）
             if (typeof sectionUnit !== 'undefined' && sectionUnit) {
                 return `第${index}${sectionUnit}`;
             }
@@ -961,11 +962,17 @@
             const firstRaw = (pMap && pMap[1]) ? pMap[1] : '';
             const sample = currentRaw || firstRaw;
 
-            if (/【上阕|（上阕）|^上阕/.test(currentRaw)) return '上阕';
-            if (/【下阕|（下阕）|^下阕/.test(currentRaw)) return '下阕';
-            if (/【第[一二三四五六七八九十\d]+句|首句|次句|第三句|第四句|末句/.test(sample)) return `第${index}句`;
-            if (/【第[一二三四五六七八九十\d]+节/.test(sample)) return `第${index}节`;
-            if (/【第[一二三四五六七八九十\d]+层/.test(sample)) return `第${index}层`;
+            // 仅提取赏析文本最开头的【标题】部分进行嗅探，避免内文出现“末句/首句”误触发
+            const headerMatch = sample.match(/【([^】]+)】/);
+            const headerText = headerMatch ? headerMatch[1] : '';
+
+            if (/^(?:上阕|（上阕）)/.test(headerText)) return '上阕';
+            if (/^(?:下阕|（下阕）)/.test(headerText)) return '下阕';
+            if (/^(?:第[一二三四五六七八九十\d]+句|其[一二三四].*?[·•]\s*(?:首句|次句|第三句|第四句|末句)|首句|次句|第三句|第四句|末句)/.test(headerText)) {
+                return `第${index}句`;
+            }
+            if (/^第[一二三四五六七八九十\d]+节/.test(headerText)) return `第${index}节`;
+            if (/^第[一二三四五六七八九十\d]+层/.test(headerText)) return `第${index}层`;
 
             return `第${index}段`;
         }
